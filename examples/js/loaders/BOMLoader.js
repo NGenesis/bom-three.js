@@ -1,0 +1,627 @@
+/**
+ * BOM (Binary Object/Material) provides a subset of Wavefront OBJ and MTL functionality to
+ * load indexed triangulated geometry and basic materials from a compact binary representation.
+ *
+ * @author Genesis / https://github.com/NGenesis/
+ */
+
+THREE.BOMLoader = function( manager ) {
+
+	this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
+
+}
+
+THREE.BOMLoader.prototype = {
+
+	constructor: THREE.BOMLoader,
+
+	load: function ( url, onLoad, onProgress, onError ) {
+
+		var scope = this;
+
+		var loader = THREE.FileLoader ? new THREE.FileLoader( this.manager ) : new THREE.XHRLoader( this.manager );
+		loader.setPath( this.path );
+		loader.setResponseType( 'arraybuffer' );
+		loader.load( url, function ( buffer ) {
+
+			onLoad( scope.parse( buffer ) );
+
+		}, onProgress, onError );
+
+	},
+
+	setPath: function ( value ) {
+
+		this.path = value;
+
+	},
+
+	setTexturePath: function ( value ) {
+
+		this.texturePath = value;
+
+	},
+
+	setCrossOrigin: function ( value ) {
+
+		this.crossOrigin = value;
+
+	},
+
+	setDebug: function ( value ) {
+
+		this.debug = value;
+
+	},
+
+	setResponseType: function ( value ) {
+
+		this.responseType = value;
+
+	},
+
+	parse: function ( buffer ) {
+
+		console.time( 'BOMLoader' );
+
+		var FileDataAttribute = {
+
+			NONE: 1 << 0,
+			MATERIAL_LIBRARY: 1 << 1
+
+		},
+
+		GroupDataAttribute = {
+
+			NONE: 1 << 0,
+			NAME: 1 << 1,
+			INDEX: 1 << 2,
+			SMOOTHING: 1 << 3,
+			MATERIAL: 1 << 4
+
+		},
+
+		ObjectDataAttribute = {
+
+			NONE: 1 << 0,
+			NAME: 1 << 1,
+			GEOMETRY: 1 << 2
+
+		},
+
+		GeometryDataAttribute = {
+
+			NONE: 1 << 0,
+			NORMAL: 1 << 1,
+			UV: 1 << 2
+
+		},
+
+		MaterialDataAttribute = {
+
+			NONE: 1 << 0,
+			ILLUMINATION_MODEL: 1 << 1,
+			SPECULAR_EXPONENT: 1 << 2,
+			OPTICAL_DENSITY: 1 << 3,
+			DISSOLVE: 1 << 4,
+			TRANSMISSION_FILTER: 1 << 5,
+			AMBIENT_REFLECTANCE: 1 << 6,
+			DIFFUSE_REFLECTANCE: 1 << 7,
+			SPECULAR_REFLECTANCE: 1 << 8,
+			EMISSIVE_REFLECTANCE: 1 << 9,
+			AMBIENT_MAP: 1 << 10,
+			DIFFUSE_MAP: 1 << 11,
+			SPECULAR_MAP: 1 << 12,
+			EMISSIVE_MAP: 1 << 13,
+			DISSOLVE_MAP: 1 << 14,
+			BUMP_MAP: 1 << 15,
+			DISPLACEMENT_MAP: 1 << 16
+
+		};
+
+		MapDataAttribute = {
+
+			NONE: 1 << 0,
+			PATH: 1 << 1,
+			SCALE: 1 << 2,
+			OFFSET: 1 << 3,
+			BUMP_SCALE: 1 << 4,
+			DISPLACEMENT_SCALE: 1 << 5
+
+		};
+
+		var view = new DataView( buffer ), pos = 0, isArrayContainer = ( this.responseType == 'array' ), containers = ( isArrayContainer ? [] : new THREE.Group() );
+
+		function readUint8 () {
+
+			var value = view.getUint8( pos );
+			pos += Uint8Array.BYTES_PER_ELEMENT;
+			return value;
+
+		}
+
+		function readUint16 () {
+
+			var value = view.getUint16( pos, true );
+			pos += Uint16Array.BYTES_PER_ELEMENT;
+			return value;
+
+		}
+
+		function readUint32 () {
+
+			var value = view.getUint32( pos, true );
+			pos += Uint32Array.BYTES_PER_ELEMENT;
+			return value;
+
+		}
+
+		function readFloat32 () {
+
+			var value = view.getFloat32( pos, true );
+			pos += Float32Array.BYTES_PER_ELEMENT;
+			return value;
+
+		}
+
+		function readString ( length ) {
+
+			var value = String.fromCharCode.apply( null, ( length > 0 ) ? new Uint8Array( view.buffer, pos, length ) : new Uint8Array() );
+			pos += Uint8Array.BYTES_PER_ELEMENT * length;
+			return value;
+
+		}
+
+		function readUint16Array ( length ) {
+
+			if ( ( pos % Uint16Array.BYTES_PER_ELEMENT ) === 0 ) {
+
+				// Aligned Access
+				var value = new Uint16Array( view.buffer, pos, length );
+				pos += Uint16Array.BYTES_PER_ELEMENT * length;
+				return value;
+
+			}
+
+			// Unaligned Access
+			var value = new Uint16Array( length );
+			for ( var i = 0; i < length; ++i, pos += Uint16Array.BYTES_PER_ELEMENT ) value[ i ] = view.getUint16( pos, true );
+			return value;
+
+		}
+
+		function readFloat32Array ( length ) {
+
+			if ( ( pos % Float32Array.BYTES_PER_ELEMENT ) === 0 ) {
+
+				// Aligned Access
+				var value = new Float32Array( view.buffer, pos, length );
+				pos += Float32Array.BYTES_PER_ELEMENT * length;
+				return value;
+
+			}
+
+			// Unaligned Access
+			var value = new Float32Array( length );
+			for ( var i = 0; i < length; ++i, pos += Float32Array.BYTES_PER_ELEMENT ) value[ i ] = view.getFloat32( pos, true );
+			return value;
+
+		}
+
+		var scope = this;
+
+		function resolveURL ( url ) {
+
+			if ( typeof url !== 'string' || url === '' ) return '';
+
+			// Absolute URL
+			if ( /^https?:\/\//i.test( url ) ) return url;
+
+			return ( scope.texturePath || scope.path || '' ) + url;
+
+		}
+
+		function loadTexture ( url ) {
+
+			url = resolveURL( url );
+			var loader = THREE.Loader.Handlers.get( url );
+			if ( loader === null ) loader = new THREE.TextureLoader( scope.manager );
+			if ( loader.setCrossOrigin ) loader.setCrossOrigin( scope.crossOrigin );
+			var texture = loader.load( url );
+			texture.side = THREE.FrontSide;
+			texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+
+			return texture;
+
+		}
+
+		// File Signature
+		var fileSignature = readString(3);
+		if ( this.debug ) console.log( 'File Signature', fileSignature );
+
+		// Version
+		var version = readUint8();
+		if ( this.debug ) console.log( 'Version', version );
+
+		// File Data Attributes
+		var fileAttributes = readUint16();
+		if ( this.debug ) {
+
+			console.log(
+
+				'FileAttributes:', '\n',
+				'Material Library', ( objectAttributes & FileDataAttribute.MATERIAL_LIBRARY ) ? true : false
+
+			);
+
+		}
+
+		// Materials
+		var materials = [];
+		if ( fileAttributes & FileDataAttribute.MATERIAL_LIBRARY ) {
+
+			// Material Count
+			var materialCount = readUint16();
+			if ( this.debug ) console.log( 'Material Count', materialCount );
+
+			for ( var i = 0; i < materialCount; ++i ) {
+
+				// Material Data Attributes
+				var materialAttributes = readUint32();
+				if ( this.debug ) {
+
+					console.log(
+
+						'MaterialAttributes:', '\n',
+						'Illumination Model', ( materialAttributes & MaterialDataAttribute.ILLUMINATION_MODEL ) ? true : false, '\n',
+						'Specular Exponent', ( materialAttributes & MaterialDataAttribute.SPECULAR_EXPONENT ) ? true : false, '\n',
+						'Optical Density', ( materialAttributes & MaterialDataAttribute.OPTICAL_DENSITY ) ? true : false, '\n',
+						'Dissolve', ( materialAttributes & MaterialDataAttribute.DISSOLVE ) ? true : false, '\n',
+						'Transmission Filter', ( materialAttributes & MaterialDataAttribute.TRANSMISSION_FILTER ) ? true : false, '\n',
+						'Ambient Reflectance', ( materialAttributes & MaterialDataAttribute.AMBIENT_REFLECTANCE ) ? true : false, '\n',
+						'Diffuse Reflectance', ( materialAttributes & MaterialDataAttribute.DIFFUSE_REFLECTANCE ) ? true : false, '\n',
+						'Specular Reflectance', ( materialAttributes & MaterialDataAttribute.SPECULAR_REFLECTANCE ) ? true : false, '\n',
+						'Ambient Map', ( materialAttributes & MaterialDataAttribute.AMBIENT_MAP ) ? true : false, '\n',
+						'Diffuse Map', ( materialAttributes & MaterialDataAttribute.DIFFUSE_MAP ) ? true : false, '\n',
+						'Specular Map', ( materialAttributes & MaterialDataAttribute.SPECULAR_MAP ) ? true : false, '\n',
+						'Dissolve Map', ( materialAttributes & MaterialDataAttribute.DISSOLVE_MAP ) ? true : false, '\n',
+						'Bump Map', ( materialAttributes & MaterialDataAttribute.BUMP_MAP ) ? true : false, '\n',
+						'Displacement Map', ( materialAttributes & MaterialDataAttribute.DISPLACEMENT_MAP ) ? true : false
+
+					);
+
+				}
+
+				var params = {};
+
+				// Material Name
+				params.name = readString( readUint16() );
+				if ( this.debug ) console.log( 'Material Name', params.name );
+
+				// Illumination Model (illum)
+				if ( materialAttributes & MaterialDataAttribute.ILLUMINATION_MODEL ) {
+
+					readUint8();
+					// Not supported
+
+				}
+
+				// Specular Exponent (Ns)
+				if ( materialAttributes & MaterialDataAttribute.SPECULAR_EXPONENT ) {
+
+					params.shininess = readFloat32();
+					if ( this.debug ) console.log( 'Specular Exponent', params.shininess );
+
+				}
+
+				// Optical Density (Ni)
+				if ( materialAttributes & MaterialDataAttribute.OPTICAL_DENSITY ) {
+
+					readFloat32();
+					// Not supported
+
+				}
+
+				// Dissolve (d / [1 - Tr])
+				if ( materialAttributes & MaterialDataAttribute.DISSOLVE ) {
+
+					params.opacity = readFloat32();
+					params.transparent = true;
+					if ( this.debug ) console.log( 'Dissolve', params.opacity );
+
+				}
+
+				// Transmission Filter (Tf)
+				if ( materialAttributes & MaterialDataAttribute.TRANSMISSION_FILTER ) {
+
+					readFloat32(), readFloat32(), readFloat32();
+					// Not supported
+
+				}
+
+				// Ambient Reflectance (Ka)
+				if ( materialAttributes & MaterialDataAttribute.AMBIENT_REFLECTANCE ) {
+
+					readFloat32(), readFloat32(), readFloat32();
+					// Assumes ambient and diffuse are linked
+
+				}
+
+				// Diffuse Reflectance (Kd)
+				if ( materialAttributes & MaterialDataAttribute.DIFFUSE_REFLECTANCE ) {
+
+					params.color = new THREE.Color( readFloat32(), readFloat32(), readFloat32() );
+					if ( this.debug ) console.log( 'Diffuse Reflectance', params.color );
+
+				}
+
+				// Specular Reflectance (Ks)
+				if ( materialAttributes & MaterialDataAttribute.SPECULAR_REFLECTANCE ) {
+
+					params.specular = new THREE.Color( readFloat32(), readFloat32(), readFloat32() );
+					if ( this.debug ) console.log( 'Specular Reflectance', params.specular );
+
+				}
+
+				// Emissive Reflectance (Ke)
+				if ( materialAttributes & MaterialDataAttribute.EMISSIVE_REFLECTANCE ) {
+
+					params.emissive = new THREE.Color( readFloat32(), readFloat32(), readFloat32() );
+					if ( this.debug ) console.log( 'Emissive Reflectance', params.emissive );
+
+				}
+
+				// Ambient Map (map_Ka)
+				if ( materialAttributes & MaterialDataAttribute.AMBIENT_MAP ) {
+
+					var mapDataAttributes = readUint16();
+					if ( mapDataAttributes & MapDataAttribute.PATH ) readString( readUint16() );
+					if ( mapDataAttributes & MapDataAttribute.SCALE ) readFloat32(), readFloat32();
+					if ( mapDataAttributes & MapDataAttribute.OFFSET ) readFloat32(), readFloat32();
+					// Assumes ambient and diffuse are linked
+
+				}
+
+				// Diffuse Map (map_Kd)
+				if ( materialAttributes & MaterialDataAttribute.DIFFUSE_MAP ) {
+
+					var mapDataAttributes = readUint16();
+					var map = loadTexture( ( mapDataAttributes & MapDataAttribute.PATH ) ? readString( readUint16() ) : '' );
+					if ( mapDataAttributes & MapDataAttribute.SCALE ) map.repeat.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.OFFSET ) map.offset.set( readFloat32(), readFloat32() );
+					params.map = map;
+					if ( this.debug && ( mapDataAttributes & MapDataAttribute.PATH ) ) console.log( 'Diffuse Map', map );
+
+				}
+
+				// Specular Map (map_Ks)
+				if ( materialAttributes & MaterialDataAttribute.SPECULAR_MAP ) {
+
+					var mapDataAttributes = readUint16();
+					var map = loadTexture( ( mapDataAttributes & MapDataAttribute.PATH ) ? readString( readUint16() ) : '' );
+					if ( mapDataAttributes & MapDataAttribute.SCALE ) map.repeat.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.OFFSET ) map.offset.set( readFloat32(), readFloat32() );
+					params.specularMap = map;
+
+				}
+
+				// Emissive Map (map_Ke)
+				if ( materialAttributes & MaterialDataAttribute.EMISSIVE_MAP ) {
+
+					var mapDataAttributes = readUint16();
+					var map = loadTexture( ( mapDataAttributes & MapDataAttribute.PATH ) ? readString( readUint16() ) : '' );
+					if ( mapDataAttributes & MapDataAttribute.SCALE ) map.repeat.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.OFFSET ) map.offset.set( readFloat32(), readFloat32() );
+					params.emissiveMap = map;
+
+				}
+
+				// Dissolve Map (map_d)
+				if ( materialAttributes & MaterialDataAttribute.DISSOLVE_MAP ) {
+
+					var mapDataAttributes = readUint16();
+					var map = loadTexture( ( mapDataAttributes & MapDataAttribute.PATH ) ? readString( readUint16() ) : '' );
+					if ( mapDataAttributes & MapDataAttribute.SCALE ) map.repeat.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.OFFSET ) map.offset.set( readFloat32(), readFloat32() );
+					params.alphaMap = map;
+					params.transparent = true;
+
+				}
+
+				// Bump Map (map_bump / bump)
+				if ( materialAttributes & MaterialDataAttribute.BUMP_MAP ) {
+
+					var mapDataAttributes = readUint16();
+					var map = loadTexture( ( mapDataAttributes & MapDataAttribute.PATH ) ? readString( readUint16() ) : '' );
+					if ( mapDataAttributes & MapDataAttribute.SCALE ) map.repeat.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.OFFSET ) map.offset.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.BUMP_SCALE ) params.bumpScale = readFloat32();
+					params.bumpMap = map;
+
+				}
+
+				// Displacement Map (map_disp / disp)
+				if ( materialAttributes & MaterialDataAttribute.DISPLACEMENT_MAP ) {
+
+					var mapDataAttributes = readUint16();
+					var map = loadTexture( ( mapDataAttributes & MapDataAttribute.PATH ) ? readString( readUint16() ) : '' );
+					if ( mapDataAttributes & MapDataAttribute.SCALE ) map.repeat.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.OFFSET ) map.offset.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.DISPLACEMENT_SCALE ) params.displacementScale = readFloat32();
+					params.displacementMap = map;
+
+				}
+
+				var material = new THREE.MeshPhongMaterial( params );
+				materials.push( material );
+
+			}
+
+		}
+
+		// Object Count
+		var objectCount = readUint16();
+		if ( this.debug ) console.log( 'Object Count', objectCount );
+
+		for ( var i = 0; i < objectCount; ++i ) {
+
+			// Object Data Attributes
+			var objectAttributes = readUint16();
+
+			if ( this.debug ) {
+
+				console.log(
+
+					'ObjectAttributes:', '\n',
+					'Name', ( objectAttributes & ObjectDataAttribute.NAME ) ? true : false, '\n',
+					'Geometry', ( objectAttributes & ObjectDataAttribute.GEOMETRY ) ? true : false
+
+				);
+
+			}
+
+			var object = new THREE.Group();
+
+			// Container ID
+			var containerId = readUint32();
+			if ( isArrayContainer ) {
+
+				if ( containerId >= containers.length ) containers.push( new THREE.Group() );
+				containers[ containerId ].add( object );
+
+			}
+			else {
+				if ( containerId >= containers.children.length ) containers.add( new THREE.Group() );
+				containers.children[ containerId ].add( object );
+
+			}
+
+			// Object Name
+			if ( objectAttributes & ObjectDataAttribute.NAME ) {
+
+				var objectName = readString( readUint16() );
+				if ( this.debug ) console.log( 'Object Name', objectName );
+				object.name = objectName;
+
+			}
+
+			var vertices = {};
+			if ( objectAttributes & ObjectDataAttribute.GEOMETRY ) {
+
+				// Geometry Data Attributes
+				var geometryAttributes = readUint16();
+				if ( this.debug ) {
+
+					console.log(
+
+						'GeometryAttributes:', '\n',
+						'Normal', ( geometryAttributes & GeometryDataAttribute.NORMAL ) ? true : false, '\n',
+						'UV', ( geometryAttributes & GeometryDataAttribute.UV ) ? true : false
+
+					);
+
+				}
+
+				// Vertex Count
+				var vertexCount = readUint32();
+				if ( this.debug ) console.log( 'Vertex Count', vertexCount );
+
+				// Vertex Positions
+				vertices.positions = readFloat32Array( vertexCount * 3 );
+
+				// Vertex Normals
+				if ( geometryAttributes & GeometryDataAttribute.NORMAL ) vertices.normals = readFloat32Array( vertexCount * 3 );
+
+				// Vertex UVs
+				if ( geometryAttributes & GeometryDataAttribute.UV ) vertices.uvs = readFloat32Array( vertexCount * 2 );
+
+			}
+
+			// Group Count
+			var groupCount = readUint16();
+			if ( this.debug ) console.log( 'Group Count', groupCount );
+
+			for ( var j = 0; j < groupCount; ++j ) {
+
+				// Group Data Attributes
+				var groupAttributes = readUint16();
+				if ( this.debug ) {
+
+					console.log(
+
+						'GroupAttributes:', '\n',
+						'Index', ( groupAttributes & GroupDataAttribute.INDEX ) ? true : false, '\n',
+						'Smoothing', ( groupAttributes & GroupDataAttribute.SMOOTHING ) ? true : false, '\n',
+						'Material', ( groupAttributes & GroupDataAttribute.MATERIAL ) ? true : false
+
+					);
+
+				}
+
+				// Group Name
+				var groupName;
+				if ( groupAttributes & GroupDataAttribute.NAME ) {
+
+					groupName = readString( readUint16() );
+					if ( this.debug ) console.log( 'Group Name', groupName );
+
+				}
+
+				var group;
+
+				if ( objectAttributes & ObjectDataAttribute.GEOMETRY ) {
+
+					// Indices
+					var indices;
+					if ( groupAttributes & GroupDataAttribute.INDEX ) {
+
+						// Index Count
+						var indexCount = readUint32();
+						if ( this.debug ) console.log( 'Index Count', indexCount );
+
+						// Indices
+						indices = readUint16Array( indexCount );
+
+					}
+
+					// Smoothing
+					var smoothing = ( groupAttributes & GroupDataAttribute.SMOOTHING ) ? readUint8() : 0;
+					if ( this.debug && ( groupAttributes & GroupDataAttribute.SMOOTHING ) ) console.log( 'Smoothing', smoothing );
+
+					var geometry = new THREE.BufferGeometry();
+					if ( vertices.positions ) geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices.positions, 3 ) );
+					vertices.normals ? geometry.addAttribute( 'normal', new THREE.BufferAttribute( vertices.normals, 3 ) ) : geometry.computeVertexNormals();
+					if ( vertices.uvs ) geometry.addAttribute( 'uv', new THREE.BufferAttribute( vertices.uvs, 2 ) );
+					if ( indices ) geometry.setIndex( new THREE.BufferAttribute( indices, 1 ) );
+					geometry.addGroup( 0, 1, 0 );
+
+					var material;
+					if ( groupAttributes & GroupDataAttribute.MATERIAL ) {
+
+						// Material ID
+						var materialId = readUint16();
+						material = materials[ materialId ].clone() || new THREE.MeshPhongMaterial();
+						material.shading = ( smoothing > 0 ) ? THREE.SmoothShading : THREE.FlatShading;
+						if ( this.debug ) console.log( 'Group Material', materialId, material );
+
+					}
+
+					group = new THREE.Mesh( geometry, material );
+
+				}
+
+				if ( group === undefined ) group = new THREE.Group();
+				if ( groupName ) group.name = groupName;
+				object.add( group );
+
+			}
+
+		}
+
+		console.timeEnd( 'BOMLoader' );
+
+		return containers;
+
+	}
+
+};
