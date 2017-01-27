@@ -5,11 +5,11 @@
  * @author Genesis / https://github.com/NGenesis/
  */
 
-THREE.BOMLoader = function( manager ) {
+THREE.BOMLoader = function ( manager ) {
 
 	this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
 
-}
+};
 
 THREE.BOMLoader.prototype = {
 
@@ -54,6 +54,12 @@ THREE.BOMLoader.prototype = {
 
 	},
 
+	setPerfTimer: function ( value ) {
+
+		this.performanceTimer = value;
+
+	},
+
 	setResponseType: function ( value ) {
 
 		this.responseType = value;
@@ -62,9 +68,18 @@ THREE.BOMLoader.prototype = {
 
 	parse: function ( buffer ) {
 
-		console.time( 'BOMLoader' );
+		if ( this.performanceTimer ) console.time( 'BOMLoader' );
 
-		var FileDataAttribute = {
+		var FaceCulling = {
+
+			NONE: 0,
+			FRONT: 1,
+			BACK: 2,
+			ALL: 3
+
+		},
+
+		FileDataAttribute = {
 
 			NONE: 1 << 0,
 			MATERIAL_LIBRARY: 1 << 1
@@ -115,9 +130,10 @@ THREE.BOMLoader.prototype = {
 			EMISSIVE_MAP: 1 << 13,
 			DISSOLVE_MAP: 1 << 14,
 			BUMP_MAP: 1 << 15,
-			DISPLACEMENT_MAP: 1 << 16
+			DISPLACEMENT_MAP: 1 << 16,
+			FACE_CULLING: 1 << 17
 
-		};
+		},
 
 		MapDataAttribute = {
 
@@ -130,7 +146,7 @@ THREE.BOMLoader.prototype = {
 
 		};
 
-		var view = new DataView( buffer ), pos = 0, isArrayContainer = ( this.responseType == 'array' ), containers = ( isArrayContainer ? [] : new THREE.Group() );
+		var view = new DataView( buffer ), pos = 0, isArrayContainer = ( this.responseType === 'array' ), containers = ( isArrayContainer ? [] : new THREE.Group() );
 
 		function readUint8 () {
 
@@ -224,10 +240,22 @@ THREE.BOMLoader.prototype = {
 		function loadTexture ( url ) {
 
 			url = resolveURL( url );
-			var loader = THREE.Loader.Handlers.get( url );
-			if ( loader === null ) loader = new THREE.TextureLoader( scope.manager );
-			if ( loader.setCrossOrigin ) loader.setCrossOrigin( scope.crossOrigin );
-			var texture = loader.load( url );
+			var texture;
+
+			if ( altspace && altspace.inClient ) {
+
+				// Defer Texture Image Loading To Native Altspace Client
+				texture = new THREE.Texture( { src: url } );
+
+			} else {
+
+				var loader = THREE.Loader.Handlers.get( url );
+				if ( loader === null ) loader = new THREE.TextureLoader( scope.manager );
+				loader.setCrossOrigin( scope.crossOrigin );
+				texture = loader.load( url );
+
+			}
+
 			texture.side = THREE.FrontSide;
 			texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
 
@@ -236,7 +264,7 @@ THREE.BOMLoader.prototype = {
 		}
 
 		// File Signature
-		var fileSignature = readString(3);
+		var fileSignature = readString( 3 );
 		if ( this.debug ) console.log( 'File Signature', fileSignature );
 
 		// Version
@@ -286,7 +314,8 @@ THREE.BOMLoader.prototype = {
 						'Specular Map', ( materialAttributes & MaterialDataAttribute.SPECULAR_MAP ) ? true : false, '\n',
 						'Dissolve Map', ( materialAttributes & MaterialDataAttribute.DISSOLVE_MAP ) ? true : false, '\n',
 						'Bump Map', ( materialAttributes & MaterialDataAttribute.BUMP_MAP ) ? true : false, '\n',
-						'Displacement Map', ( materialAttributes & MaterialDataAttribute.DISPLACEMENT_MAP ) ? true : false
+						'Displacement Map', ( materialAttributes & MaterialDataAttribute.DISPLACEMENT_MAP ) ? true : false, '\n',
+						'Face Culling', ( materialAttributes & MaterialDataAttribute.FACE_CULLING ) ? true : false
 
 					);
 
@@ -452,6 +481,17 @@ THREE.BOMLoader.prototype = {
 
 				}
 
+				// Face Culling (cull_face)
+				if ( materialAttributes & MaterialDataAttribute.FACE_CULLING ) {
+
+					var faceCulling = readUint8();
+					if ( faceCulling === FaceCulling.ALL ) params.visible = false;
+					else if ( faceCulling === FaceCulling.FRONT ) params.side = THREE.BackSide;
+					else if ( faceCulling === FaceCulling.BACK ) params.side = THREE.FrontSide;
+					else params.side = THREE.DoubleSide;
+
+				}
+
 				var material = new THREE.MeshPhongMaterial( params );
 				materials.push( material );
 
@@ -489,8 +529,8 @@ THREE.BOMLoader.prototype = {
 				if ( containerId >= containers.length ) containers.push( new THREE.Group() );
 				containers[ containerId ].add( object );
 
-			}
-			else {
+			} else {
+
 				if ( containerId >= containers.children.length ) containers.add( new THREE.Group() );
 				containers.children[ containerId ].add( object );
 
@@ -618,10 +658,39 @@ THREE.BOMLoader.prototype = {
 
 		}
 
-		console.timeEnd( 'BOMLoader' );
+		if ( this.performanceTimer ) console.timeEnd( 'BOMLoader' );
 
 		return containers;
 
 	}
+
+};
+
+THREE.BOMLoaderUtil = THREE.BOMLoaderUtil || {};
+THREE.BOMLoaderUtil.multiload = function ( requests, onComplete ) {
+
+	requests = ( requests.constructor === Array ) ? requests : [ requests ];
+	var requestCount = requests.length;
+	var responses = [];
+
+	function loadRequest ( index, request ) {
+
+		var loader = new THREE.BOMLoader();
+		loader.setTexturePath( request.url.split( '/' ).slice( 0, -1 ).join( '/' ) + '/' );
+		if ( request.debug !== undefined ) loader.setDebug( request.debug );
+		if ( request.timer !== undefined ) loader.setPerfTimer( request.timer );
+		if ( request.crossOrigin !== undefined ) loader.setCrossOrigin( request.crossOrigin );
+		if ( request.responseType !== undefined ) loader.setResponseType( request.responseType );
+		loader.load( request.url, function ( object ) {
+
+			request.object = object;
+			responses[ index ] = request;
+			if ( --requestCount <= 0 ) onComplete( responses );
+
+		} );
+
+	}
+
+	for ( var i = 0; i < requests.length; ++i ) loadRequest( i, requests[ i ] );
 
 };
