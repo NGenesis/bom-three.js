@@ -86,6 +86,13 @@ THREE.BOMLoader.prototype = {
 
 		},
 
+		AssetDataAttribute = {
+
+			NONE: 1 << 0,
+			NAME: 1 << 1
+
+		},
+
 		GroupDataAttribute = {
 
 			NONE: 1 << 0,
@@ -99,8 +106,7 @@ THREE.BOMLoader.prototype = {
 		ObjectDataAttribute = {
 
 			NONE: 1 << 0,
-			NAME: 1 << 1,
-			GEOMETRY: 1 << 2
+			GEOMETRY: 1 << 1
 
 		},
 
@@ -146,7 +152,7 @@ THREE.BOMLoader.prototype = {
 
 		};
 
-		var view = new DataView( buffer ), pos = 0, isArrayContainer = ( this.responseType === 'array' ), containers = ( isArrayContainer ? [] : new THREE.Group() );
+		var view = new DataView( buffer ), pos = 0, isAssetArray = ( this.responseType === 'array' ), assets = ( isAssetArray ? [] : new THREE.Group() );
 
 		function readUint8 () {
 
@@ -499,160 +505,169 @@ THREE.BOMLoader.prototype = {
 
 		}
 
-		// Object Count
-		var objectCount = readUint16();
-		if ( this.debug ) console.log( 'Object Count', objectCount );
+		// Asset Count
+		var assetCount = readUint16();
+		if ( this.debug ) console.log( 'Asset Count', assetCount );
 
-		for ( var i = 0; i < objectCount; ++i ) {
+		for ( var a = 0; a < assetCount; ++a ) {
 
-			// Object Data Attributes
-			var objectAttributes = readUint16();
+			// Asset Data Attributes
+			var assetAttributes = readUint16();
 
 			if ( this.debug ) {
 
 				console.log(
 
-					'ObjectAttributes:', '\n',
-					'Name', ( objectAttributes & ObjectDataAttribute.NAME ) ? true : false, '\n',
-					'Geometry', ( objectAttributes & ObjectDataAttribute.GEOMETRY ) ? true : false
+					'AssetAttributes:', '\n',
+					'Name', ( assetAttributes & AssetDataAttribute.NAME ) ? true : false
 
 				);
 
 			}
 
-			var object = new THREE.Group();
+			var asset = assets;
+			if ( isAssetArray ) {
 
-			// Container ID
-			var containerId = readUint32();
-			if ( isArrayContainer ) {
-
-				if ( containerId >= containers.length ) containers.push( new THREE.Group() );
-				containers[ containerId ].add( object );
-
-			} else {
-
-				if ( containerId >= containers.children.length ) containers.add( new THREE.Group() );
-				containers.children[ containerId ].add( object );
+				asset = new THREE.Group();
+				assets.push( asset );
 
 			}
 
-			// Object Name
-			if ( objectAttributes & ObjectDataAttribute.NAME ) {
+			// Asset Name
+			if ( assetAttributes & AssetDataAttribute.NAME ) {
 
-				var objectName = readString( readUint16() );
-				if ( this.debug ) console.log( 'Object Name', objectName );
-				object.name = objectName;
+				var assetName = readString( readUint16() );
+				if ( this.debug ) console.log( 'Asset Name', assetName );
+				if ( !isAssetArray ) asset.name = assetName;
 
 			}
 
-			var vertices = {};
-			if ( objectAttributes & ObjectDataAttribute.GEOMETRY ) {
+			// Object Count
+			var objectCount = readUint16();
+			if ( this.debug ) console.log( 'Object Count', objectCount );
 
-				// Geometry Data Attributes
-				var geometryAttributes = readUint16();
+			for ( var i = 0; i < objectCount; ++i ) {
+
+				// Object Data Attributes
+				var objectAttributes = readUint16();
+
 				if ( this.debug ) {
 
 					console.log(
 
-						'GeometryAttributes:', '\n',
-						'Normal', ( geometryAttributes & GeometryDataAttribute.NORMAL ) ? true : false, '\n',
-						'UV', ( geometryAttributes & GeometryDataAttribute.UV ) ? true : false
+						'ObjectAttributes:', '\n',
+						'Geometry', ( objectAttributes & ObjectDataAttribute.GEOMETRY ) ? true : false
 
 					);
 
 				}
 
-				// Vertex Count
-				var vertexCount = readUint32();
-				if ( this.debug ) console.log( 'Vertex Count', vertexCount );
-
-				// Vertex Positions
-				vertices.positions = readFloat32Array( vertexCount * 3 );
-
-				// Vertex Normals
-				if ( geometryAttributes & GeometryDataAttribute.NORMAL ) vertices.normals = readFloat32Array( vertexCount * 3 );
-
-				// Vertex UVs
-				if ( geometryAttributes & GeometryDataAttribute.UV ) vertices.uvs = readFloat32Array( vertexCount * 2 );
-
-			}
-
-			// Group Count
-			var groupCount = readUint16();
-			if ( this.debug ) console.log( 'Group Count', groupCount );
-
-			for ( var j = 0; j < groupCount; ++j ) {
-
-				// Group Data Attributes
-				var groupAttributes = readUint16();
-				if ( this.debug ) {
-
-					console.log(
-
-						'GroupAttributes:', '\n',
-						'Index', ( groupAttributes & GroupDataAttribute.INDEX ) ? true : false, '\n',
-						'Smoothing', ( groupAttributes & GroupDataAttribute.SMOOTHING ) ? true : false, '\n',
-						'Material', ( groupAttributes & GroupDataAttribute.MATERIAL ) ? true : false
-
-					);
-
-				}
-
-				// Group Name
-				var groupName;
-				if ( groupAttributes & GroupDataAttribute.NAME ) {
-
-					groupName = readString( readUint16() );
-					if ( this.debug ) console.log( 'Group Name', groupName );
-
-				}
-
-				var group;
-
+				var vertices = {};
 				if ( objectAttributes & ObjectDataAttribute.GEOMETRY ) {
 
-					// Indices
-					var indices;
-					if ( groupAttributes & GroupDataAttribute.INDEX ) {
+					// Geometry Data Attributes
+					var geometryAttributes = readUint16();
+					if ( this.debug ) {
 
-						// Index Count
-						var indexCount = readUint32();
-						if ( this.debug ) console.log( 'Index Count', indexCount );
+						console.log(
 
-						// Indices
-						indices = readUint16Array( indexCount );
+							'GeometryAttributes:', '\n',
+							'Normal', ( geometryAttributes & GeometryDataAttribute.NORMAL ) ? true : false, '\n',
+							'UV', ( geometryAttributes & GeometryDataAttribute.UV ) ? true : false
 
-					}
-
-					// Smoothing
-					var smoothing = ( groupAttributes & GroupDataAttribute.SMOOTHING ) ? readUint8() : 0;
-					if ( this.debug && ( groupAttributes & GroupDataAttribute.SMOOTHING ) ) console.log( 'Smoothing', smoothing );
-
-					var geometry = new THREE.BufferGeometry();
-					if ( vertices.positions ) geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices.positions, 3 ) );
-					vertices.normals ? geometry.addAttribute( 'normal', new THREE.BufferAttribute( vertices.normals, 3 ) ) : geometry.computeVertexNormals();
-					if ( vertices.uvs ) geometry.addAttribute( 'uv', new THREE.BufferAttribute( vertices.uvs, 2 ) );
-					if ( indices ) geometry.setIndex( new THREE.BufferAttribute( indices, 1 ) );
-					geometry.addGroup( 0, 1, 0 );
-
-					var material;
-					if ( groupAttributes & GroupDataAttribute.MATERIAL ) {
-
-						// Material ID
-						var materialId = readUint16();
-						material = materials[ materialId ].clone() || new THREE.MeshPhongMaterial();
-						material.shading = ( smoothing > 0 ) ? THREE.SmoothShading : THREE.FlatShading;
-						if ( this.debug ) console.log( 'Group Material', materialId, material );
+						);
 
 					}
 
-					group = new THREE.Mesh( geometry, material );
+					// Vertex Count
+					var vertexCount = readUint32();
+					if ( this.debug ) console.log( 'Vertex Count', vertexCount );
+
+					// Vertex Positions
+					vertices.positions = readFloat32Array( vertexCount * 3 );
+
+					// Vertex Normals
+					if ( geometryAttributes & GeometryDataAttribute.NORMAL ) vertices.normals = readFloat32Array( vertexCount * 3 );
+
+					// Vertex UVs
+					if ( geometryAttributes & GeometryDataAttribute.UV ) vertices.uvs = readFloat32Array( vertexCount * 2 );
 
 				}
 
-				if ( group === undefined ) group = new THREE.Group();
-				if ( groupName ) group.name = groupName;
-				object.add( group );
+				// Group Count
+				var groupCount = readUint16();
+				if ( this.debug ) console.log( 'Group Count', groupCount );
+
+				for ( var j = 0; j < groupCount; ++j ) {
+
+					// Group Data Attributes
+					var groupAttributes = readUint16();
+					if ( this.debug ) {
+
+						console.log(
+
+							'GroupAttributes:', '\n',
+							'Index', ( groupAttributes & GroupDataAttribute.INDEX ) ? true : false, '\n',
+							'Smoothing', ( groupAttributes & GroupDataAttribute.SMOOTHING ) ? true : false, '\n',
+							'Material', ( groupAttributes & GroupDataAttribute.MATERIAL ) ? true : false
+
+						);
+
+					}
+
+					// Group Name
+					var groupName;
+					if ( groupAttributes & GroupDataAttribute.NAME ) {
+
+						groupName = readString( readUint16() );
+						if ( this.debug ) console.log( 'Group Name', groupName );
+
+					}
+
+					if ( objectAttributes & ObjectDataAttribute.GEOMETRY ) {
+
+						// Indices
+						var indices;
+						if ( groupAttributes & GroupDataAttribute.INDEX ) {
+
+							// Index Count
+							var indexCount = readUint32();
+							if ( this.debug ) console.log( 'Index Count', indexCount );
+
+							// Indices
+							indices = readUint16Array( indexCount );
+
+						}
+
+						// Smoothing
+						var smoothing = ( groupAttributes & GroupDataAttribute.SMOOTHING ) ? readUint8() : 0;
+						if ( this.debug && ( groupAttributes & GroupDataAttribute.SMOOTHING ) ) console.log( 'Smoothing', smoothing );
+
+						var geometry = new THREE.BufferGeometry();
+						if ( vertices.positions ) geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices.positions, 3 ) );
+						vertices.normals ? geometry.addAttribute( 'normal', new THREE.BufferAttribute( vertices.normals, 3 ) ) : geometry.computeVertexNormals();
+						if ( vertices.uvs ) geometry.addAttribute( 'uv', new THREE.BufferAttribute( vertices.uvs, 2 ) );
+						if ( indices ) geometry.setIndex( new THREE.BufferAttribute( indices, 1 ) );
+						geometry.addGroup( 0, 1, 0 );
+
+						var material;
+						if ( groupAttributes & GroupDataAttribute.MATERIAL ) {
+
+							// Material ID
+							var materialId = readUint16();
+							material = materials[ materialId ].clone() || new THREE.MeshPhongMaterial();
+							material.shading = ( smoothing > 0 ) ? THREE.SmoothShading : THREE.FlatShading;
+							if ( this.debug ) console.log( 'Group Material', materialId, material );
+
+						}
+
+						var mesh = new THREE.Mesh( geometry, material );
+						if ( groupName ) mesh.name = groupName;
+						asset.add( mesh );
+
+					}
+
+				}
 
 			}
 
@@ -660,7 +675,7 @@ THREE.BOMLoader.prototype = {
 
 		if ( this.performanceTimer ) console.timeEnd( 'BOMLoader' );
 
-		return containers;
+		return assets;
 
 	}
 
