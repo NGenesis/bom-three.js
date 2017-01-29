@@ -239,7 +239,8 @@ THREE.BOMLoader.prototype = {
 			// Absolute URL
 			if ( /^https?:\/\//i.test( url ) ) return url;
 
-			return ( scope.texturePath || scope.path || '' ) + url;
+			var absoluteUrl = new URL(( scope.texturePath || scope.path || '' ) + url, location.href.substring( 0, location.href.lastIndexOf( '/' ) + 1 ));
+			return absoluteUrl.toString();
 
 		}
 
