@@ -9,7 +9,6 @@ Include the loader library in your project:
 ```
 
 Then create an instance of BOMLoader and specify the file path to load:
-### Javascript
 ```javascript
 var filePath = 'https://example.com/path/to/file.bom';
 
@@ -20,6 +19,21 @@ loader.setTexturePath(filePath.split('/').slice(0, -1).join('/') + '/'); // Spec
 
 loader.load(filePath, function(obj) {
 	scene.add(obj); // Add object to scene once loaded.
+});
+```
+
+A convenience loader is also provided to load one or more files in the order provided:
+```javascript
+var filePaths = [
+	{ name: 'File 1', url: 'https://example.com/path/to/file1.bom' },
+	{ name: 'File 2', url: 'https://example.com/path/to/file2.bom' }
+];
+
+THREE.BOMLoaderUtil.multiload(filePaths, function(objects) {
+	for(var object of objects) {
+		console.log('File loaded: ', object.name);
+		scene.add(object.object); // Add object to scene once loaded.
+	}
 });
 ```
 
