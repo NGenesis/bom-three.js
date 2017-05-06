@@ -1,0 +1,4 @@
+newmtl pillar
+	Kd 0.5882 0.5882 0.5882
+	map_Kd pillar.png
+	# :BOM: lightmap -intensity 1 pillar_lightmap.png

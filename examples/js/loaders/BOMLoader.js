@@ -114,7 +114,8 @@ THREE.BOMLoader.prototype = {
 
 			NONE: 1 << 0,
 			NORMAL: 1 << 1,
-			UV: 1 << 2
+			UV1: 1 << 2,
+			UV2: 1 << 3
 
 		},
 
@@ -137,7 +138,8 @@ THREE.BOMLoader.prototype = {
 			DISSOLVE_MAP: 1 << 14,
 			BUMP_MAP: 1 << 15,
 			DISPLACEMENT_MAP: 1 << 16,
-			FACE_CULLING: 1 << 17
+			FACE_CULLING: 1 << 17,
+			LIGHT_MAP: 1 << 18
 
 		},
 
@@ -148,7 +150,8 @@ THREE.BOMLoader.prototype = {
 			SCALE: 1 << 2,
 			OFFSET: 1 << 3,
 			BUMP_SCALE: 1 << 4,
-			DISPLACEMENT_SCALE: 1 << 5
+			DISPLACEMENT_SCALE: 1 << 5,
+			LIGHTMAP_INTENSITY: 1 << 6
 
 		};
 
@@ -322,7 +325,8 @@ THREE.BOMLoader.prototype = {
 						'Dissolve Map', ( materialAttributes & MaterialDataAttribute.DISSOLVE_MAP ) ? true : false, '\n',
 						'Bump Map', ( materialAttributes & MaterialDataAttribute.BUMP_MAP ) ? true : false, '\n',
 						'Displacement Map', ( materialAttributes & MaterialDataAttribute.DISPLACEMENT_MAP ) ? true : false, '\n',
-						'Face Culling', ( materialAttributes & MaterialDataAttribute.FACE_CULLING ) ? true : false
+						'Face Culling', ( materialAttributes & MaterialDataAttribute.FACE_CULLING ) ? true : false, '\n',
+						'Light Map', ( materialAttributes & MaterialDataAttribute.LIGHT_MAP ) ? true : false
 
 					);
 
@@ -499,6 +503,18 @@ THREE.BOMLoader.prototype = {
 
 				}
 
+				// Light Map (lightmap)
+				if ( materialAttributes & MaterialDataAttribute.LIGHT_MAP ) {
+
+					var mapDataAttributes = readUint16();
+					var map = loadTexture( ( mapDataAttributes & MapDataAttribute.PATH ) ? readString( readUint16() ) : '' );
+					if ( mapDataAttributes & MapDataAttribute.SCALE ) map.repeat.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.OFFSET ) map.offset.set( readFloat32(), readFloat32() );
+					if ( mapDataAttributes & MapDataAttribute.LIGHTMAP_INTENSITY ) params.lightMapIntensity = readFloat32();
+					params.lightMap = map;
+
+				}
+
 				var material = new THREE.MeshPhongMaterial( params );
 				materials.push( material );
 
@@ -574,7 +590,8 @@ THREE.BOMLoader.prototype = {
 
 							'GeometryAttributes:', '\n',
 							'Normal', ( geometryAttributes & GeometryDataAttribute.NORMAL ) ? true : false, '\n',
-							'UV', ( geometryAttributes & GeometryDataAttribute.UV ) ? true : false
+							'UV1', ( geometryAttributes & GeometryDataAttribute.UV1 ) ? true : false, '\n',
+							'UV2', ( geometryAttributes & GeometryDataAttribute.UV2 ) ? true : false
 
 						);
 
@@ -591,7 +608,8 @@ THREE.BOMLoader.prototype = {
 					if ( geometryAttributes & GeometryDataAttribute.NORMAL ) vertices.normals = readFloat32Array( vertexCount * 3 );
 
 					// Vertex UVs
-					if ( geometryAttributes & GeometryDataAttribute.UV ) vertices.uvs = readFloat32Array( vertexCount * 2 );
+					if ( geometryAttributes & GeometryDataAttribute.UV1 ) vertices.uvs = readFloat32Array( vertexCount * 2 );
+					if ( geometryAttributes & GeometryDataAttribute.UV2 ) vertices.uvs2 = readFloat32Array( vertexCount * 2 );
 
 				}
 
@@ -648,6 +666,7 @@ THREE.BOMLoader.prototype = {
 						if ( vertices.positions ) geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices.positions, 3 ) );
 						vertices.normals ? geometry.addAttribute( 'normal', new THREE.BufferAttribute( vertices.normals, 3 ) ) : geometry.computeVertexNormals();
 						if ( vertices.uvs ) geometry.addAttribute( 'uv', new THREE.BufferAttribute( vertices.uvs, 2 ) );
+						if ( vertices.uvs2 ) geometry.addAttribute( 'uv2', new THREE.BufferAttribute( vertices.uvs2, 2 ) );
 						if ( indices ) geometry.setIndex( new THREE.BufferAttribute( indices, 1 ) );
 						geometry.addGroup( 0, 1, 0 );
 

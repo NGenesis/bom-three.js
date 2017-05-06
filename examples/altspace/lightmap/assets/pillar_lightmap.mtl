@@ -1,0 +1,3 @@
+newmtl pillar
+	Kd 0.5882 0.5882 0.5882
+	map_Kd pillar_lightmap.png
