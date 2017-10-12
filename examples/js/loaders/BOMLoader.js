@@ -677,7 +677,7 @@ THREE.BOMLoader.prototype = {
 							var materialId = readUint16();
 							material = materials[ materialId ].clone() || new THREE.MeshPhongMaterial();
 
-							if( material.flatShading ) material.flatShading = ( smoothing <= 0 );
+							if( material.flatShading !== undefined ) material.flatShading = ( smoothing <= 0 );
 							else material.shading = ( smoothing > 0 ) ? THREE.SmoothShading : THREE.FlatShading;
 
 							if ( this.debug ) console.log( 'Group Material', materialId, material );
