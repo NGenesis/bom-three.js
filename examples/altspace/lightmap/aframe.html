@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang=en>
+	<head>
+		<meta charset=utf-8>
+		<title>BOM Lightmap Example (A-Frame)</title>
+		<script src="https://aframe.io/releases/0.3.0/aframe.min.js"></script>
+		<script src="https://cdn.rawgit.com/AltspaceVR/AltspaceSDK/v2.6.1/dist/altspace.min.js"></script>
+		<script src="../../js/loaders/BOMLoader.min.js"></script>
+		<script type="text/javascript">
+			AFRAME.registerComponent( 'lightmap-hover-effect', {
+				init: function() {
+					this.init = false;
+				},
+
+				tick: function(time, deltaTime) {
+					if(!this.init && this.el.object3D.children[0] && this.el.object3D.children[0].children[0]) {
+						var o = this.el.object3D.children[0].children[0];
+						this.object3d = o;
+						this.elapsedTime = 0;
+						this.object3d.addEventListener('cursorenter', (function() {
+							this.active = true;
+						}).bind(this));
+						this.object3d.addEventListener('cursorleave', (function() {
+							this.active = false;
+							this.elapsedTime = 0;
+							this.object3d.material.lightMapIntensity = 1;
+						}).bind(this));
+
+						this.init = true;
+					}
+
+					if(this.active) {
+						this.elapsedTime += deltaTime;
+						this.object3d.material.lightMapIntensity = Math.sin(this.elapsedTime / 400);
+					}
+				}
+			});
+		</script>
+	</head>
+	<body>
+		<a-scene altspace="fullspace: true">
+			<a-entity n-text="text: Diffuse Map; height: 3; font-size: 2; vertical-align: top" position="0 0.2 0" rotation="0 45 0">
+				<a-entity bom-asset="src: assets/pillar_diffuse.bom" rotation="-90 0 0" scale="0.0005 0.0005 0.0005"></a-entity>
+			</a-entity>
+			<a-entity n-text="text: Light Map; height: 3; font-size: 2; vertical-align: top" position="0.5 0.2 -1.5" rotation="0 45 0">
+				<a-entity bom-asset="src: assets/pillar_lightmap.bom" rotation="-90 0 0" scale="0.0005 0.0005 0.0005"></a-entity>
+			</a-entity>
+			<a-entity n-text="text: Diffuse & Light Map; height: 3; font-size: 2; vertical-align: top" position="1 0.2 -3" rotation="0 45 0">
+				<a-entity bom-asset="src: assets/pillar_lightmapped.bom" rotation="-90 0 0" lightmap-hover-effect scale="0.0005 0.0005 0.0005"></a-entity>
+			</a-entity>
+		</a-scene>
+	</body>
+</html>
