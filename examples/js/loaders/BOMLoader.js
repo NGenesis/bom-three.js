@@ -737,145 +737,150 @@ THREE.BOMLoaderUtil.multiload = function ( requests, onComplete ) {
 };
 
 // Binary Object/Material (BOM) A-Frame Component Wrapper
+if ( window.AFRAME ) {
+	if ( AFRAME.systems[ 'bom-assets' ] ) delete AFRAME.systems[ 'bom-assets' ];
 
-// BOM Asset System
-AFRAME.registerSystem ( 'bom-assets', {
+	// BOM Asset System
+	AFRAME.registerSystem ( 'bom-assets', {
 
-	init: function () {
+		init: function () {
 
-		this.assets = [];
-
-	},
-
-	/**
-	* Registers a BOM asset.
-	* @param {object} BOM asset to be registered.
-	*/
-	registerAsset: function ( asset ) {
-
-		this.assets.push( asset );
-
-	},
-
-	/**
-	* Unregisters a BOM asset.
-	* @param {object} BOM asset to be unregistered.
-	*/
-	unregisterAsset: function ( asset ) {
-
-		var index = this.assets.indexOf( asset );
-		if ( index >= 0 ) this.assets.splice( index, 1 );
-
-	}
-
-});
-
-// BOM Asset Loader
-AFRAME.registerComponent ( 'bom-asset', {
-
-	schema: {
-
-		src: {
-
-			type: 'string'
+			this.assets = [];
 
 		},
 
-		crossOrigin: {
+		/**
+		* Registers a BOM asset.
+		* @param {object} BOM asset to be registered.
+		*/
+		registerAsset: function ( asset ) {
 
-			type: 'string',
-			default: 'anonymous'
-
-		},
-
-		debug: {
-
-			type: 'boolean',
-			default: false
+			this.assets.push( asset );
 
 		},
 
-		perfTimer: {
+		/**
+		* Unregisters a BOM asset.
+		* @param {object} BOM asset to be unregistered.
+		*/
+		unregisterAsset: function ( asset ) {
 
-			type: 'boolean',
-			default: false
-
-		},
-
-		responseType: {
-
-			type: 'string',
-			default: ''
-
-		},
-
-		path: {
-
-			type: 'string'
-
-		},
-
-		texturePath: {
-
-			type: 'string'
+			var index = this.assets.indexOf( asset );
+			if ( index >= 0 ) this.assets.splice( index, 1 );
 
 		}
 
-	},
+	});
 
-	init: function () {
+	if ( AFRAME.components[ 'bom-asset' ] ) delete AFRAME.components[ 'bom-asset' ];
 
-		this.asset = null;
-		this.loader = new THREE.BOMLoader();
+	// BOM Asset Loader
+	AFRAME.registerComponent ( 'bom-asset', {
 
-	},
+		schema: {
 
-	update: function () {
+			src: {
 
-		var scope = this;
-		if ( !this.data.src ) return;
+				type: 'string'
 
-		this.remove();
-		this.loader.setCrossOrigin( this.data.crossOrigin );
-		this.loader.setDebug( this.data.debug );
-		this.loader.setPerfTimer( this.data.perfTimer );
-		this.loader.setResponseType( this.data.responseType );
-		this.loader.setPath( this.data.path );
-		this.loader.setTexturePath( this.data.texturePath );
-		this.loader.load( this.data.src, function( obj ) {
+			},
 
-			scope.asset = obj;
-			if ( scope.system ) scope.system.registerModel( scope.asset );
-			scope.el.setObject3D( 'mesh', scope.asset );
-			scope.el.emit( 'model-loaded', { format: 'bom', model: scope.asset } );
+			crossOrigin: {
 
-		});
+				type: 'string',
+				default: 'anonymous'
 
-	},
+			},
 
-	remove: function () {
+			debug: {
 
-		if ( !this.asset ) return;
-		this.el.removeObject3D( 'mesh' );
-		if ( this.system ) this.system.unregisterModel( this.asset );
+				type: 'boolean',
+				default: false
 
-	}
+			},
 
-});
+			perfTimer: {
 
-// BOM Asset Primitive
-AFRAME.registerPrimitive( 'a-bom-asset', {
+				type: 'boolean',
+				default: false
 
-	mappings: {
+			},
 
-		src: 'bom-asset.src',
-		crossOrigin: 'bom-asset.crossOrigin',
-		debug: 'bom-asset.debug',
-		perfTimer: 'bom-asset.perfTimer',
-		responseType: 'bom-asset.responseType',
-		path: 'bom-asset.path',
-		texturePath: 'bom-asset.texturePath'
+			responseType: {
 
-	}
+				type: 'string',
+				default: ''
 
-});
+			},
+
+			path: {
+
+				type: 'string'
+
+			},
+
+			texturePath: {
+
+				type: 'string'
+
+			}
+
+		},
+
+		init: function () {
+
+			this.asset = null;
+			this.loader = new THREE.BOMLoader();
+
+		},
+
+		update: function () {
+
+			var scope = this;
+			if ( !this.data.src ) return;
+
+			this.remove();
+			this.loader.setCrossOrigin( this.data.crossOrigin );
+			this.loader.setDebug( this.data.debug );
+			this.loader.setPerfTimer( this.data.perfTimer );
+			this.loader.setResponseType( this.data.responseType );
+			this.loader.setPath( this.data.path );
+			this.loader.setTexturePath( this.data.texturePath );
+			this.loader.load( this.data.src, function( obj ) {
+
+				scope.asset = obj;
+				if ( scope.system ) scope.system.registerModel( scope.asset );
+				scope.el.setObject3D( 'mesh', scope.asset );
+				scope.el.emit( 'model-loaded', { format: 'bom', model: scope.asset } );
+
+			});
+
+		},
+
+		remove: function () {
+
+			if ( !this.asset ) return;
+			this.el.removeObject3D( 'mesh' );
+			if ( this.system ) this.system.unregisterModel( this.asset );
+
+		}
+
+	});
+
+	// BOM Asset Primitive
+	AFRAME.registerPrimitive( 'a-bom-asset', {
+
+		mappings: {
+
+			src: 'bom-asset.src',
+			crossOrigin: 'bom-asset.crossOrigin',
+			debug: 'bom-asset.debug',
+			perfTimer: 'bom-asset.perfTimer',
+			responseType: 'bom-asset.responseType',
+			path: 'bom-asset.path',
+			texturePath: 'bom-asset.texturePath'
+
+		}
+
+	});
+}

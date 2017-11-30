@@ -5,7 +5,7 @@ consisting of THREE.BufferGeometry and an associated THREE.Material.  Multi-mate
 ## Usage
 Include the loader library in your project:
 ```html
-<script src="https://cdn.rawgit.com/NGenesis/bom-three.js/v0.6.0/examples/js/loaders/BOMLoader.min.js"></script>
+<script src="https://cdn.rawgit.com/NGenesis/bom-three.js/v0.6.1/examples/js/loaders/BOMLoader.min.js"></script>
 ```
 
 Then create an instance of BOMLoader and specify the file path to load:
