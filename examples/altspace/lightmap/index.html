@@ -1,63 +1,50 @@
-<!DOCTYPE html>
-<html lang=en>
-	<head>
-		<meta charset=utf-8>
-		<title>BOM Lightmap Example</title>
-		<script src="https://cdn.rawgit.com/mrdoob/three.js/r88/build/three.min.js"></script>
-		<script src="https://cdn.rawgit.com/AltspaceVR/AltspaceSDK/v2.7.1/dist/altspace.min.js"></script>
-		<script src="https://cdn.rawgit.com/NGenesis/altspacevr-behaviors/v0.9.2/js/altspaceutil.min.js"></script>
-		<script src="../../js/loaders/BOMLoader.min.js"></script>
-		<script type="text/javascript">
-			var sim = new altspace.utilities.Simulation();
+﻿<!DOCTYPE html>
+<title>BOM Lightmap Example</title>
+<script src="https://cdn.jsdelivr.net/combine/npm/three@0.94.0/build/three.min.js,npm/altspace@2.9.0/dist/altspace.min.js,npm/altspacevr-behaviors@1.0.6/js/altspaceutil.min.js"></script>
+<script src="../../js/loaders/BOMLoader.min.js"></script>
+<script>
+	altspace.getFullspaceApp().then(app => {
+		let assets = [
+			{ description: 'Diffuse Map', url: 'assets/pillar_diffuse.bom' },
+			{ description: 'Light Map', url: 'assets/pillar_lightmap.bom' },
+			{ description: 'Diffuse & Light Map', url: 'assets/pillar_lightmapped.bom' }
+		];
 
-			altspace.getEnclosure().then(function(enclosure) {
-				enclosure.requestFullspace().then(function() {
-					var assets = [
-						{ description: 'Diffuse Map', url: 'assets/pillar_diffuse.bom' },
-						{ description: 'Light Map', url: 'assets/pillar_lightmap.bom' },
-						{ description: 'Diffuse & Light Map', url: 'assets/pillar_lightmapped.bom' }
-					];
+		THREE.BOMLoaderUtil.multiload(assets, objects => {
+			for(let i = 0; i < objects.length; ++i) {
+				objects[i].object.position.set(i * 0.5, 0.2, i * -1.5);
+				objects[i].object.rotation.y = Math.PI / 4;
+				objects[i].object.children[0].rotation.x = -Math.PI / 2;
+				objects[i].object.children[0].scale.multiplyScalar(0.0005);
+				app.anchor.add(objects[i].object);
+				objects[i].object.addBehavior(new altspaceutil.behaviors.NativeComponent('n-text', { text: objects[i].description, height: 3, fontSize: 2, verticalAlign: 'top' }));
+			}
 
-					THREE.BOMLoaderUtil.multiload(assets, function(objects) {
-						for(var i = 0; i < objects.length; ++i) {
-							objects[i].object.position.set(i * 0.5, 0.2, i * -1.5);
-							objects[i].object.rotation.y = Math.PI / 4;
-							objects[i].object.children[0].rotation.x = -Math.PI / 2;
-							objects[i].object.children[0].scale.multiplyScalar(0.0005);
-							sim.scene.add(objects[i].object);
-							objects[i].object.addBehavior(new altspaceutil.behaviors.NativeComponent('n-text', { text: objects[i].description, height: 3, fontSize: 2, verticalAlign: 'top' }));
+			objects[2].object.children[0].addBehavior(
+				new (function LightmapGlow() {
+					this.type = 'LightmapGlow';
+
+					this.awake = function(o) {
+						this.object3d = o;
+						this.elapsedTime = 0;
+						this.object3d.addEventListener('cursorenter', () => {
+							this.active = true;
+						});
+						this.object3d.addEventListener('cursorleave', () => {
+							this.active = false;
+							this.elapsedTime = 0;
+							this.object3d.material.lightMapIntensity = 1;
+						});
+					}
+
+					this.update = function(deltaTime) {
+						if(this.active) {
+							this.elapsedTime += deltaTime;
+							this.object3d.material.lightMapIntensity = Math.sin(this.elapsedTime / 400);
 						}
-
-						objects[2].object.children[0].addBehavior(
-							new (function LightmapGlow() {
-								this.type = 'LightmapGlow';
-
-								this.awake = function(o) {
-									this.object3d = o;
-									this.elapsedTime = 0;
-									this.object3d.addEventListener('cursorenter', (function() {
-										this.active = true;
-									}).bind(this));
-									this.object3d.addEventListener('cursorleave', (function() {
-										this.active = false;
-										this.elapsedTime = 0;
-										this.object3d.material.lightMapIntensity = 1;
-									}).bind(this));
-								}
-
-								this.update = function(deltaTime) {
-									if(this.active) {
-										this.elapsedTime += deltaTime;
-										this.object3d.material.lightMapIntensity = Math.sin(this.elapsedTime / 400);
-									}
-								}
-							})
-						);
-					});
-				});
-			});
-		</script>
-	</head>
-	<body>
-	</body>
-</html>
+					}
+				})
+			);
+		});
+	});
+</script>
