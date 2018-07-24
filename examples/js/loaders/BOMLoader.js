@@ -8,6 +8,7 @@
 THREE.BOMLoader = function ( manager ) {
 
 	this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
+	this.crossOrigin = 'anonymous';
 
 };
 
